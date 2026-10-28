@@ -1,14 +1,18 @@
 name: Build Sunil Gujarati Gujlish Keyboard APK
 
-"on":
+on:
   workflow_dispatch:
   push:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,28 +25,44 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
 
       - name: Extract Android source ZIP
+        shell: bash
         run: |
-          ZIP_FILE=$(find . -maxdepth 2 -type f -name '*.zip' | head -n 1)
+          set -e
+          mkdir -p source
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname '*.zip' | head -n 1)
+
           if [ -z "$ZIP_FILE" ]; then
-            echo "Source ZIP not found"
+            echo "ERROR: Android source ZIP not found in repository."
             exit 1
           fi
-          mkdir -p source
+
+          echo "Found source ZIP: $ZIP_FILE"
           unzip -o "$ZIP_FILE" -d source
 
       - name: Build APK
+        shell: bash
         run: |
+          set -e
+
           GRADLE_FILE=$(find source -type f -name gradlew | head -n 1)
+
           if [ -z "$GRADLE_FILE" ]; then
-            echo "gradlew not found"
+            echo "ERROR: gradlew not found inside source ZIP."
             exit 1
           fi
+
           PROJECT_DIR=$(dirname "$GRADLE_FILE")
           cd "$PROJECT_DIR"
+
           chmod +x gradlew
           echo "sdk.dir=$ANDROID_HOME" > local.properties
+
           ./gradlew assembleDebug
 
       - name: Upload APK
